@@ -1,0 +1,38 @@
+[package]
+name = "rzpipe"
+version = "0.1.0"
+authors = [
+    "pancake <pancake@nopcode.org>",
+    "sushant94 <sushant.dinesh94@gmail.com>",
+    "4thel00z <4thel00z@gmail.com>"
+]
+edition = "2021"
+description = "Library to interact with rizin using rzpipe."
+
+# Repository
+repository = "https://github.com/rizinorg/rz-pipe/"
+
+keywords = [
+    "rizin",
+    "security",
+    "exploitation",
+    "program-analysis",
+    "reverse-engineering"
+]
+
+# Readme link
+readme = "README.md"
+
+# License information
+license = "MIT OR Apache-2.0"
+
+[features]
+default = []
+
+[dependencies]
+libc = { version = "0.2" }
+serde = { version = "1.0" }
+serde_json = { version = "1.0" }
+serde_derive = { version = "1.0" }
+reqwest = { version = "0.11", features = ["blocking"] }
+thiserror = { version = "1.0" }
