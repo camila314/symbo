@@ -1,0 +1,5 @@
+/target
+*.svg
+*.symdb
+*.exdb
+*.lock
