@@ -104,7 +104,7 @@ pub struct ExecPair {
 pub enum Bind {
 	Verified(u64),
 	Unverified(u64),
-	Unknown,
+	Conflict,
 	Inline
 }
 
