@@ -1,42 +1,71 @@
+use std::path::PathBuf;
+use std::fs;
+
 mod pipes;
 mod db;
 mod generate;
 mod util;
 mod analysis;
 
-fn main() {
-    let input_db: db::ExecDB = pot::from_slice(&std::fs::read("android.exdb").unwrap()).unwrap();
-    let output_db: db::ExecDB = pot::from_slice(&std::fs::read("mac.exdb").unwrap()).unwrap();
+use crate::db::*;
 
-    let pair = db::ExecPair {
-        input: input_db,
-        output: output_db
-    };
+use clap::{Parser, Subcommand};
 
-    let binds = analysis::create_bind(&pair);
-    // write output to file with serde_json, pretty print
-    println!("Outputting");
+#[derive(Parser)]
+#[command(name = "Symbo")]
+struct Cli {
+    #[command(subcommand)]
+    command: Command
+}
 
-    std::fs::write("binds.symdb", serde_json::to_string_pretty(&binds).unwrap()).unwrap();
+#[derive(Subcommand)]
+enum Command {
+    Generate {
+        exec: PathBuf,
 
-
-    /*{
-        let output = generate::generate("/Users/jakrillis/projects/symbo/test/android211").unwrap();
-
-        // write output to file with serde
-        println!("Outputting");
-
-        let output = pot::to_vec(&output).unwrap();
-        std::fs::write("android.exdb", output).unwrap();
+        #[clap(short, long)]
+        output: Option<PathBuf>
+    },
+    Run {
+        from: PathBuf,
+        to: PathBuf,
+        #[clap(short, long)]
+        out: Option<PathBuf>
     }
+}
 
-    {
-        let output = generate::generate("/Users/jakrillis/projects/symbo/test/mac211").unwrap();
+fn main() {
 
-        // write output to file with serde
-        println!("Outputting");
+    let args = Cli::parse();
 
-        let output = pot::to_vec(&output).unwrap();
-        std::fs::write("mac.exdb", output).unwrap();
-    }*/
+    match args.command {
+        Command::Generate { exec, output } => {
+            let out_file = output.unwrap_or_else(|| PathBuf::from((exec.file_name().unwrap().to_string_lossy() + ".exdb").to_string()));
+            fs::write(&out_file, "").expect("Unable to write to output file!");
+
+            let out_data = generate::generate(exec.display().to_string()).unwrap();
+            fs::write(&out_file, pot::to_vec(&out_data).unwrap()).unwrap();
+
+        },
+        
+        Command::Run { from, to, out } => {
+            let pair = ExecPair {
+                input: pot::from_slice(&std::fs::read(from).unwrap()).expect("Invalid exdb file"),
+                output: pot::from_slice(&std::fs::read(to).unwrap()).expect("Invalid exdb file")
+            };
+
+            let mut binds = if let Some(ref out) = out {
+                serde_json::from_slice(&std::fs::read(out).unwrap()).expect("Invalid symdb file")
+            } else {
+                BindDB::new(&pair)
+            };
+
+            println!("To do!");
+
+            binds.process(analysis::string_xref_strat(&pair, &binds));
+            binds.process(analysis::call_xref_strat(&pair, &binds));
+
+            std::fs::write(out.unwrap_or(PathBuf::from("symbols.symdb")), serde_json::to_string_pretty(&binds).unwrap()).unwrap();
+        }
+    }
 }

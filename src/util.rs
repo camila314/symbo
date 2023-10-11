@@ -1,5 +1,15 @@
 use std::fmt::Display;
 
+pub trait AsHex {
+	fn as_hex(&self) -> String;
+}
+
+impl AsHex for u64 {
+	fn as_hex(&self) -> String {
+		format!("{:#x}", self)
+	}
+}
+
 pub trait AsSome {
 	fn as_some(self) -> Option<Self> where Self: Sized;
 }

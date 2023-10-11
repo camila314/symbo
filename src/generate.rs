@@ -1,15 +1,12 @@
-#![allow(unused)]
-
-use rzpipe::RzPipeSpawnOptions;
 use std::io::Write;
-use std::collections::HashMap;
-use std::collections::BTreeMap;
+use std::collections::{HashMap, BTreeMap};
+
 use crate::pipes::PipeExt;
 use crate::db::*;
 use crate::util::{Warn, AsSome};
 
 use serde_json::Value;
-use rzpipe::RzPipe;
+use rzpipe::{RzPipe, RzPipeSpawnOptions};
 
 fn hex_to_u64(hex: &str) -> Option<u64> {
 	u64::from_str_radix(hex.strip_prefix("0x").unwrap_or("j"), 16).ok().warn_if(format!("Unable to decode hex: {}", hex))
@@ -112,7 +109,7 @@ pub fn generate(rizin_proj: impl ToString) -> Result<ExecDB, Box<dyn std::error:
 
 	let vtable_addrs: Vec<u64> = vtables_raw.iter().map(|x| x.0).collect();
 
-	let mut vtables: HashMap<String, Vtable> = pipe.cmd_bulk("avrj @@= `cat {}`", &vtable_addrs)?
+	let vtables: HashMap<String, Vtable> = pipe.cmd_bulk("avrj @@= `cat {}`", &vtable_addrs)?
 		.lines()
 		.zip(vtables_raw)
 		.filter_map(|(x, y)| (
