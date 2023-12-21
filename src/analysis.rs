@@ -9,7 +9,24 @@ use crossterm::event;
 use crossterm::terminal::{enable_raw_mode, disable_raw_mode};
 
 // Silly helpers
-fn xref_compare<'a>(bind_db: &BindDB, pair: &ExecPair, in_blk: &'a Block, out_blks: Vec<&'a Block>) -> Option<&'a Block> {
+fn block_compare<'a>(bind_db: &BindDB, pair: &ExecPair, in_blk: &'a Block, mut out_blks: Vec<&'a Block>) -> Option<&'a Block> {
+	// sanity check
+	if let Some(sym_name) = pair.input.fns.get(&in_blk.address.function_addr).and_then(|x| x.name.as_ref()) {
+		let matching = bind_db.binds.get(sym_name).and_then(|x| x.get_addr());
+		if let Some(matching) = matching {
+			if out_blks.iter().find(|x| x.address.function_addr == matching).is_none() {
+				return None;
+			}
+
+			let possible: Vec<_> = out_blks.into_iter().filter(|x| x.address.function_addr == matching).collect();
+			if possible.len() == 1 {
+				return Some(possible[0]);
+			} else {
+				out_blks = possible;
+			}
+		}
+	}
+
 	// string check!
 	let strings_matching: Vec<_> = out_blks.iter().filter(|x| x.strings == in_blk.strings).collect();
 	if strings_matching.len() == 1 {
@@ -58,6 +75,7 @@ pub fn xref_binds(bind_db: &BindDB, pair: &ExecPair, xrefs: Vec<(&Vec<Address>, 
 			y.first()?.function_addr
 		).as_some())
 		.for_each(|(x, y)| {
+
 			output.insert(x, y);
 		});
 
@@ -68,7 +86,7 @@ pub fn xref_binds(bind_db: &BindDB, pair: &ExecPair, xrefs: Vec<(&Vec<Address>, 
 			let oblocks: Vec<_> = y.iter().map(|x| pair.output.addr_to_block(x).unwrap()).collect();
 			x.iter()
 				.map(move |x| (pair.input.addr_to_block(x).unwrap(), oblocks.clone()))
-				.map(|(x, y)| (x, xref_compare(bind_db, pair, x, y)?).as_some())
+				.map(|(x, y)| (x, block_compare(bind_db, pair, x, y)?).as_some())
 		}).flatten()
 		.filter_map(|x| x.and_then(|(x, y)| (
 			pair.input.fns.get(&x.address.function_addr).unwrap().name.clone()?,
@@ -81,19 +99,90 @@ pub fn xref_binds(bind_db: &BindDB, pair: &ExecPair, xrefs: Vec<(&Vec<Address>, 
 	output
 }
 
-// Strategies TODO: not as many debug prints
+pub fn block_binds(bind_db: &BindDB, pair: &ExecPair, blocks: Vec<(&Block, &Block)>) -> HashMap<String, u64> {
+	blocks.into_iter().map(|(i_block, o_block)| i_block.calls.iter().zip(&o_block.calls).map(|(x, y)| {
+		match (x, y) {
+			(Dest::Unknown, Dest::Unknown) => Ok(None),
+			(Dest::Known(i), Dest::Known(o)) => {
+				let out = pair.input.fns.get(&i)
+					.and_then(|x| x.name.as_ref())
+					.map(|x| (x.clone(), *o));
 
-pub fn call_xref_strat(pair: &ExecPair, binds: &BindDB) -> HashMap<String, u64> {
-	let call_pairs: Vec<(&Option<String>, &Vec<Address>, &Vec<Address>)> = pair.input.fns.iter()
+				if let Some(ref x) = out {
+					if matches!(bind_db.binds.get(&x.0), Some(Bind::Inline)) {
+						// stop immediately for inlines
+						return Err(());
+					}
+
+					println!("{} called in block {}", x.0.yellow(), i_block.address.block_addr.as_hex().blue());
+				}
+
+				Ok(out)
+			},
+			_ => {
+				println!("Block mismatch! {} - {} (Potential Inline?)",
+					i_block.address.block_addr.as_hex().blue(), 
+					o_block.address.block_addr.as_hex().blue()
+				);
+
+				Err(())
+			}
+		}
+	}).take_while(|x| x.is_ok()).filter_map(|x| x.unwrap())).flatten().collect()
+}
+
+// Strategies
+
+pub fn call_block_strat(pair: &ExecPair, binds: &BindDB) -> HashMap<String, u64> {
+	let call_pairs: Vec<(&Vec<Address>, &Vec<Address>)> = pair.input.fns.iter()
 		.filter_map(|x| (
-			&x.1.name,
 			&x.1.xrefs,
 			&pair.output.fns.get(
 				&binds.binds.get(x.1.name.as_ref()?)?.get_addr()?
 			)?.xrefs
 		).as_some()).collect();
 
-	xref_binds(binds, pair, call_pairs.into_iter().map(|(_, y, z)| (y,z)).collect())
+	let blocks: Vec<(&Block, &Block)> = call_pairs.iter()
+		.map(|(i, o)| (
+			i,
+			o.iter().filter_map(|x| pair.output.addr_to_block(x)).collect::<Vec<_>>()
+		))
+		.map(|(i, o)|
+			i.iter()
+				.filter_map(|x| (x, pair.input.fns.get(&x.function_addr)?.name.as_ref()?).as_some())
+				.filter_map(|(x, y)| (
+					pair.input.addr_to_block(x)?,
+					{
+						let addr = binds.binds.get(y).and_then(|x| x.get_addr());
+
+						let possible: Vec<_> = o.iter()
+							// too much time lol
+							//.filter(|y| binds.binds.values().find(|x| x.get_addr() == Some(y.address.function_addr)).is_some())
+							.filter(|x| addr == Some(x.address.function_addr))
+							.collect();
+
+						if possible.len() == 1 {
+							*possible[0]
+						} else {
+							None?
+						}
+					}
+				).as_some()).collect::<Vec<_>>()
+		).flatten().collect();
+
+	block_binds(binds, pair, blocks)
+}
+
+pub fn call_xref_strat(pair: &ExecPair, binds: &BindDB) -> HashMap<String, u64> {
+	let call_pairs: Vec<(&Vec<Address>, &Vec<Address>)> = pair.input.fns.iter()
+		.filter_map(|x| (
+			&x.1.xrefs,
+			&pair.output.fns.get(
+				&binds.binds.get(x.1.name.as_ref()?)?.get_addr()?
+			)?.xrefs
+		).as_some()).collect();
+
+	xref_binds(binds, pair, call_pairs)
 }
 
 pub fn string_xref_strat(pair: &ExecPair, binds: &BindDB) -> HashMap<String, u64> {
@@ -181,6 +270,30 @@ impl BindDB {
 				self.binds.insert(k, Bind::Unverified(v));
 			}
 		}
+
+		// mfw rust
+		let mut new_binds = HashMap::new();
+		for (k, v) in self.binds.iter() {
+			if let Bind::Unverified(a) = v {
+				let appearances: Vec<_> = self.binds.iter().filter(|(_, x)| *x == v).collect();
+
+				if appearances.len() > 1 {
+					for bind in appearances {
+						if conflict_confirm(&k, *a) {
+							verify_count += 1;
+							new_binds.insert(bind.0.to_string(), Bind::Verified(*a));
+						} else {
+							new_binds.insert(bind.0.to_string(), Bind::Not(vec![*a]));
+						}
+					
+					}
+				}
+
+			}
+		}
+		new_binds.into_iter().for_each(|(k, v)| {
+			self.binds.insert(k, v);
+		});
 
 		println!("Added {} symbols", (self.binds.len() - before_count).to_string().bright_green());
 

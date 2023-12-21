@@ -31,6 +31,10 @@ enum Command {
         to: PathBuf,
         #[clap(short, long)]
         out: Option<PathBuf>
+    },
+    Print {
+        exec: PathBuf,
+        addr: u64
     }
 }
 
@@ -62,10 +66,16 @@ fn main() {
 
             println!("To do!");
 
-            binds.process(analysis::string_xref_strat(&pair, &binds));
+            //binds.process(analysis::string_xref_strat(&pair, &binds));
             binds.process(analysis::call_xref_strat(&pair, &binds));
+            //binds.process(analysis::call_block_strat(&pair, &binds));
 
             std::fs::write(out.unwrap_or(PathBuf::from("symbols.symdb")), serde_json::to_string_pretty(&binds).unwrap()).unwrap();
+        },
+
+        Command::Print { exec, addr } => {
+            let exec: ExecDB = pot::from_slice(&std::fs::read(exec).unwrap()).expect("Invalid exdb file");
+            println!("{:#?}", exec.fns.get(&addr));
         }
     }
 }
