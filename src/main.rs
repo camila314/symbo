@@ -66,7 +66,7 @@ fn main() {
 
             println!("To do!");
 
-            //binds.process(analysis::string_xref_strat(&pair, &binds));
+            binds.process(analysis::string_xref_strat(&pair, &binds));
             binds.process(analysis::call_xref_strat(&pair, &binds));
             binds.process(analysis::call_block_strat(&pair, &binds));
 

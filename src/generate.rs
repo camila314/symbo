@@ -50,6 +50,10 @@ fn nearest_block(val: u64, possible: &Vec<u64>) -> Option<u64> {
 		if mid_val == val {
 			return Some(mid_val);
 		} else if mid_val > val {
+			if mid == 0 {
+				return None;
+			}
+			
 			high = mid - 1;
 		} else {
 			low = mid + 1;

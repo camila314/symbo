@@ -203,12 +203,12 @@ fn confirm(msg: &str) -> bool {
 	loop {
 		let evt = event::read();
 		match evt {
-			Ok(event::Event::Key(event::KeyEvent { code: event::KeyCode::Char('y'), .. })) => {
+			Ok(event::Event::Key(event::KeyEvent { code: event::KeyCode::Char('y'), kind: event::KeyEventKind::Press, .. })) => {
 				disable_raw_mode().unwrap();
 				println!("yes");
 				return true;
 			},
-			Ok(event::Event::Key(event::KeyEvent { code: event::KeyCode::Char('n'), .. })) => {
+			Ok(event::Event::Key(event::KeyEvent { code: event::KeyCode::Char('n'), kind: event::KeyEventKind::Press, .. })) => {
 				disable_raw_mode().unwrap();
 				println!("no");
 				return false;
@@ -228,7 +228,7 @@ fn conflict_confirm(sym: &str, addr: u64) -> bool {
 		.map(|x| x.to_string())
 		.unwrap_or(sym.to_string());
 
-	confirm(&format!("Is {} located at {}?", sym_demangle.yellow(), addr.as_hex().blue()))
+	confirm(&format!("Is {} located at {}", sym_demangle.yellow(), addr.as_hex().blue()))
 }
 
 
