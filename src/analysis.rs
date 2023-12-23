@@ -273,7 +273,7 @@ impl BindDB {
 				self.binds.insert(k, Bind::Unverified(v));
 			}
 
-			std::fs::write(outfile, serde_json::to_string_pretty(&self.binds).unwrap()).unwrap();
+			std::fs::write(outfile, serde_json::to_string_pretty(&self).unwrap()).unwrap();
 		}
 
 		// mfw rust
