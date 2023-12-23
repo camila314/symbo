@@ -237,6 +237,8 @@ impl BindDB {
 		let before_count = self.binds.len();
 		let mut verify_count = 0;
 
+		println!("Processing {} new symbols", new.len().to_string().bright_green());
+
 		for (k, v) in new {
 			if let Some(x) = self.binds.get_mut(&k) {
 				match x {
@@ -277,14 +279,17 @@ impl BindDB {
 			if let Bind::Unverified(a) = v {
 				let appearances: Vec<_> = self.binds.iter().filter(|(_, x)| *x == v).collect();
 
+				//println!("{:?}", appearances);
+
 				if appearances.len() > 1 {
 					for bind in appearances {
-						if conflict_confirm(&k, *a) {
+						println!("{:?}", bind);
+						/*if conflict_confirm(bind.0, *a) {
 							verify_count += 1;
 							new_binds.insert(bind.0.to_string(), Bind::Verified(*a));
 						} else {
 							new_binds.insert(bind.0.to_string(), Bind::Not(vec![*a]));
-						}
+						}*/
 					
 					}
 				}
@@ -318,7 +323,7 @@ impl BindDB {
 			});
 
 		// Do a little string xref
-		bind_db.process(string_xref_strat(pair, &bind_db));
+		//bind_db.process(string_xref_strat(pair, &bind_db));
 
 		bind_db
 	}

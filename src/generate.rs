@@ -87,6 +87,8 @@ pub fn generate(rizin_proj: impl ToString) -> Result<ExecDB, Box<dyn std::error:
 		).flatten().collect();
 	let block_keys: Vec<_> = block_pool.keys().map(|x| *x).collect();
 
+	println!("Blocks: {}", block_keys.len());
+
 	println!("Loading Symbols");
 
 	let symbols: HashMap<u64, String> = pipe.cmd("isq~Z")?
@@ -148,6 +150,8 @@ pub fn generate(rizin_proj: impl ToString) -> Result<ExecDB, Box<dyn std::error:
 				function_addr: *block_pool.get(&blk).unwrap_or(&0)
 			}).collect::<Vec<_>>()
 		)).collect();
+
+	println!("Xrefs Found: {}", xrefs.len());
 
 	println!("Loading Blocks");
 

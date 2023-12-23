@@ -68,7 +68,7 @@ fn main() {
 
             //binds.process(analysis::string_xref_strat(&pair, &binds));
             binds.process(analysis::call_xref_strat(&pair, &binds));
-            //binds.process(analysis::call_block_strat(&pair, &binds));
+            binds.process(analysis::call_block_strat(&pair, &binds));
 
             std::fs::write(out.unwrap_or(PathBuf::from("symbols.symdb")), serde_json::to_string_pretty(&binds).unwrap()).unwrap();
         },
