@@ -1,3 +1,4 @@
+use std::path::Path;
 use std::io::Write;
 use colored::Colorize;
 use std::collections::HashMap;
@@ -233,7 +234,7 @@ fn conflict_confirm(sym: &str, addr: u64) -> bool {
 
 
 impl BindDB {
-	pub fn process(&mut self, new: HashMap<String, u64>) {
+	pub fn process(&mut self, new: HashMap<String, u64>, outfile: &Path) {
 		let before_count = self.binds.len();
 		let mut verify_count = 0;
 
@@ -271,6 +272,8 @@ impl BindDB {
 			} else {
 				self.binds.insert(k, Bind::Unverified(v));
 			}
+
+			std::fs::write(outfile, serde_json::to_string_pretty(&self.binds).unwrap()).unwrap();
 		}
 
 		// mfw rust
