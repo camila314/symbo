@@ -66,11 +66,12 @@ fn main() {
 
             println!("To do!");
 
-            binds.process(analysis::string_xref_strat(&pair, &binds));
-            binds.process(analysis::call_xref_strat(&pair, &binds));
-            binds.process(analysis::call_block_strat(&pair, &binds));
+            let out_file = out.clone().unwrap_or(PathBuf::from("symbols.symdb"));
 
-            std::fs::write(out.unwrap_or(PathBuf::from("symbols.symdb")), serde_json::to_string_pretty(&binds).unwrap()).unwrap();
+            binds.process(analysis::string_xref_strat(&pair, &binds), &out_file);
+            binds.process(analysis::call_xref_strat(&pair, &binds), &out_file);
+            binds.process(analysis::call_block_strat(&pair, &binds), &out_file);
+
         },
 
         Command::Print { exec, addr } => {
