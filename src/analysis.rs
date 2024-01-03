@@ -175,7 +175,7 @@ fn block_traverse<'a>(binds: &BindDB, pair: &'a ExecPair, blocks: Vec<(&'a Block
 			}
 		}
 
-		current_blocks = next_blocks;
+		current_blocks = next_blocks.into_iter().filter(|x| !total_blocks.contains(x)).collect();
 
 	}
 
