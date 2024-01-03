@@ -305,8 +305,6 @@ pub fn block_traverse_strat(pair: &ExecPair, binds: &BindDB) -> HashMap<String, 
 			.find(|x| Some(x.address.block_addr) == y.get_addr())?
 	).as_some()).collect();
 
-	dbg!(&block_pairs);
-
 	block_binds(binds, pair, block_traverse(binds, pair, block_pairs))
 }
 
