@@ -65,6 +65,123 @@ fn block_compare<'a>(bind_db: &BindDB, pair: &ExecPair, in_blk: &'a Block, mut o
 	None
 }
 
+fn block_traverse<'a>(binds: &BindDB, pair: &'a ExecPair, blocks: Vec<(&'a Block, &'a Block)>) -> Vec<(&'a Block, &'a Block)> {
+	let mut total_blocks: Vec<(&'a Block, &'a Block)> = Vec::new();
+
+	let mut current_blocks = blocks.clone();
+
+	while !current_blocks.is_empty() {
+		total_blocks.extend(&current_blocks);
+		let mut next_blocks: Vec<(&'a Block, &'a Block)> = Vec::new();
+
+		for (in_blk, out_blk) in &current_blocks {
+			let has_inline = in_blk.calls.iter().filter_map(|x| match x {
+				Dest::Known(x) => pair.input.fns.get(x)?.name.clone(),
+				Dest::Unknown => None
+			}).any(|x| matches!(binds.binds.get(&x), Some(Bind::Inline)));
+
+			if has_inline {
+				continue;
+			}
+
+			match (&in_blk.branch, &out_blk.branch) {
+				(Branch::Neutral(Dest::Known(x)), Branch::Neutral(Dest::Known(y))) => {
+					(
+						pair.input.addr_to_block(&Address {
+							function_addr: in_blk.address.function_addr,
+							block_addr: *x,
+							addr: *x
+						}),
+						pair.output.addr_to_block(&Address {
+							function_addr: out_blk.address.function_addr,
+							block_addr: *y,
+							addr: *y
+						})
+					).as_some()
+					.and_then(|(x, y)| (x?,y?).as_some())
+					.map(|x| next_blocks.push(x));
+				},
+				(Branch::Equality(Dest::Known(xeq), Dest::Known(xneq)), Branch::Equality(Dest::Known(yeq), Dest::Known(yneq))) => {
+					//next_blocks.push((xeq, yeq));
+					(
+						pair.input.addr_to_block(&Address {
+							function_addr: in_blk.address.function_addr,
+							block_addr: *xeq,
+							addr: *xeq
+						}), 
+						pair.output.addr_to_block(&Address {
+							function_addr: out_blk.address.function_addr,
+							block_addr: *yeq,
+							addr: *yeq
+						})
+					).as_some()
+					 .and_then(|(x, y)| (x?,y?).as_some())
+					 .map(|x| next_blocks.push(x));
+
+					//next_blocks.push((xneq, yneq));
+					(
+						pair.input.addr_to_block(&Address {
+							function_addr: in_blk.address.function_addr,
+							block_addr: *xneq,
+							addr: *xneq
+						}), 
+						pair.output.addr_to_block(&Address {
+							function_addr: out_blk.address.function_addr,
+							block_addr: *yneq,
+							addr: *yneq
+						})
+					).as_some()
+					 .and_then(|(x, y)| (x?,y?).as_some())
+					 .map(|x| next_blocks.push(x));
+				
+				},
+				(Branch::Inequality(Dest::Known(xgt), Dest::Known(xlt)), Branch::Inequality(Dest::Known(ygt), Dest::Known(ylt))) => {
+					//next_blocks.push((xgt, ygt));
+					(
+						pair.input.addr_to_block(&Address {
+							function_addr: in_blk.address.function_addr,
+							block_addr: *xgt,
+							addr: *xgt
+						}), 
+						pair.output.addr_to_block(&Address {
+							function_addr: out_blk.address.function_addr,
+							block_addr: *ygt,
+							addr: *ygt
+						})
+					).as_some()
+					 .and_then(|(x, y)| (x?,y?).as_some())
+					 .map(|x| next_blocks.push(x));
+
+
+					//next_blocks.push((xlt, ylt));
+					(
+						pair.input.addr_to_block(&Address {
+							function_addr: in_blk.address.function_addr,
+							block_addr: *xlt,
+							addr: *xlt
+						}), 
+						pair.output.addr_to_block(&Address {
+							function_addr: out_blk.address.function_addr,
+							block_addr: *ylt,
+							addr: *ylt
+						})
+					).as_some()
+					 .and_then(|(x, y)| (x?,y?).as_some())
+					 .map(|x| next_blocks.push(x));
+				
+				},
+
+				_ => continue
+			}
+		}
+
+		current_blocks = next_blocks;
+
+	}
+
+	total_blocks
+}
+
 pub fn xref_binds(bind_db: &BindDB, pair: &ExecPair, xrefs: Vec<(&Vec<Address>, &Vec<Address>)>) -> HashMap<String, u64> {
 	let mut output = HashMap::new();
 
@@ -114,8 +231,6 @@ pub fn block_binds(bind_db: &BindDB, pair: &ExecPair, blocks: Vec<(&Block, &Bloc
 						// stop immediately for inlines
 						return Err(());
 					}
-
-					println!("{} called in block {}", x.0.yellow(), i_block.address.block_addr.as_hex().blue());
 				}
 
 				Ok(out)
@@ -172,6 +287,27 @@ pub fn call_block_strat(pair: &ExecPair, binds: &BindDB) -> HashMap<String, u64>
 		).flatten().collect();
 
 	block_binds(binds, pair, blocks)
+}
+
+pub fn block_traverse_strat(pair: &ExecPair, binds: &BindDB) -> HashMap<String, u64> {
+
+	let fns_by_name: HashMap<_, _> = pair.input.fns.iter()
+		.filter_map(|x| (x.1.name.clone()?, x.1.blocks.iter().find(|y| y.address.block_addr == x.1.address.function_addr)?).as_some())
+		.collect();
+
+
+	// Vec<(In, Out)>
+	let block_pairs: Vec<_> = binds.binds.iter().filter_map(|(x, y)| (
+		*fns_by_name.get(x)?,
+		pair.output.fns.get(&y.get_addr()?)?
+			.blocks
+			.iter()
+			.find(|x| Some(x.address.block_addr) == y.get_addr())?
+	).as_some()).collect();
+
+	dbg!(&block_pairs);
+
+	block_binds(binds, pair, block_traverse(binds, pair, block_pairs))
 }
 
 pub fn call_xref_strat(pair: &ExecPair, binds: &BindDB) -> HashMap<String, u64> {
@@ -277,31 +413,41 @@ impl BindDB {
 		}
 
 		// mfw rust
-		let mut new_binds = HashMap::new();
-		for (k, v) in self.binds.iter() {
+		let binds_clone = self.binds.clone();
+		for (_, v) in binds_clone.iter() {
 			if let Bind::Unverified(a) = v {
-				let appearances: Vec<_> = self.binds.iter().filter(|(_, x)| *x == v).collect();
+				let appearances: Vec<_> = binds_clone.iter().filter(|(_, x)| x.get_addr() == v.get_addr()).collect();
 
 				//println!("{:?}", appearances);
 
 				if appearances.len() > 1 {
-					for bind in appearances {
-						println!("{:?}", bind);
-						/*if conflict_confirm(bind.0, *a) {
-							verify_count += 1;
-							new_binds.insert(bind.0.to_string(), Bind::Verified(*a));
-						} else {
-							new_binds.insert(bind.0.to_string(), Bind::Not(vec![*a]));
-						}*/
-					
+					println!("{:?}", appearances);
+					if let Some(verified) = appearances.iter().find(|x| matches!(x.1, Bind::Verified(_))) {
+						self.binds.insert(verified.0.to_string(), verified.1.clone());
+					} else {
+						for bind in &appearances {
+							println!("{:?}", bind);
+							if conflict_confirm(bind.0, *a) {
+								verify_count += 1;
+								self.binds.insert(bind.0.to_string(), Bind::Verified(*a));
+								break;
+							} else {
+								self.binds.insert(bind.0.to_string(), Bind::Not(vec![*a]));
+							}
+						
+						}
 					}
-				}
 
+					for bind in appearances {
+						if let Some(Bind::Unverified(_)) = self.binds.get(bind.0) {
+							self.binds.remove(bind.0);
+						}
+					}
+
+					std::fs::write(outfile, serde_json::to_string_pretty(&self).unwrap()).unwrap();
+				}
 			}
 		}
-		new_binds.into_iter().for_each(|(k, v)| {
-			self.binds.insert(k, v);
-		});
 
 		println!("Added {} symbols", (self.binds.len() - before_count).to_string().bright_green());
 

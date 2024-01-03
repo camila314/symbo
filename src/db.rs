@@ -100,7 +100,7 @@ pub struct ExecPair {
 
 // For Binds
 
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum Bind {
 	Verified(u64),
 	Unverified(u64),
