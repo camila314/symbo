@@ -1,13 +1,9 @@
 use std::path::Path;
-use std::io::Write;
-use colored::Colorize;
 use std::collections::HashMap;
+use colored::Colorize;
 
 use crate::util::*;
 use crate::db::*;
-
-use crossterm::event;
-use crossterm::terminal::{enable_raw_mode, disable_raw_mode};
 
 // Silly helpers
 fn block_compare<'a>(bind_db: &BindDB, pair: &ExecPair, in_blk: &'a Block, mut out_blks: Vec<&'a Block>) -> Option<&'a Block> {
@@ -328,45 +324,6 @@ pub fn string_xref_strat(pair: &ExecPair, binds: &BindDB) -> HashMap<String, u64
 	xref_binds(binds, pair, string_pairs)
 }
 
-// The big stuff
-fn confirm(msg: &str) -> bool {
-	print!("{} {}", msg, "[y/n] ".dimmed());
-	std::io::stdout().flush().unwrap();
-
-	enable_raw_mode().unwrap();
-
-	loop {
-		let evt = event::read();
-		match evt {
-			Ok(event::Event::Key(event::KeyEvent { code: event::KeyCode::Char('y'), kind: event::KeyEventKind::Press, .. })) => {
-				disable_raw_mode().unwrap();
-				println!("yes");
-				return true;
-			},
-			Ok(event::Event::Key(event::KeyEvent { code: event::KeyCode::Char('n'), kind: event::KeyEventKind::Press, .. })) => {
-				disable_raw_mode().unwrap();
-				println!("no");
-				return false;
-			},
-
-			Ok(event::Event::Key(event::KeyEvent { code: event::KeyCode::Char('c'), modifiers: event::KeyModifiers::CONTROL, .. })) => {
-				disable_raw_mode().unwrap();
-				std::process::exit(0);
-			},
-			_=>()
-		};
-	}
-}
-
-fn conflict_confirm(sym: &str, addr: u64) -> bool {
-	let sym_demangle = cpp_demangle::Symbol::new(sym)
-		.map(|x| x.to_string())
-		.unwrap_or(sym.to_string());
-
-	confirm(&format!("Is {} located at {}", sym_demangle.yellow(), addr.as_hex().blue()))
-}
-
-
 impl BindDB {
 	pub fn process(&mut self, new: HashMap<String, u64>, outfile: &Path) {
 		let before_count = self.binds.len();
@@ -375,29 +332,43 @@ impl BindDB {
 		println!("Processing {} new symbols", new.len().to_string().bright_green());
 
 		for (k, v) in new {
+			if let Some(x) = self.binds.get(&k) {
+				if self.binds.iter().any(|x| *x.1 == Bind::Verified(v)) && !matches!(x, Bind::Verified(_)) {
+					self.binds.insert(k.clone(), Bind::Not(vec![v]));
+				}
+			}
+
 			if let Some(x) = self.binds.get_mut(&k) {
 				match x {
 					Bind::Unverified(a) => {
 						if *a != v {
 							// CONFLICT
-							if conflict_confirm(&k, v) {
-								verify_count += 1;
-								*x = Bind::Verified(v);
-							} else if conflict_confirm(&k, *a) {
-								verify_count += 1;
-								*x = Bind::Verified(*a);
-							} else {
-								*x = Bind::Not(vec![*a, v]);
+							if let Some(confirm) = conflict_confirm(&k, v) {
+								if confirm {
+									verify_count += 1;
+									*x = Bind::Verified(v);	
+								} else if let Some(confirm) = conflict_confirm(&k, *a) {
+									if confirm {
+										verify_count += 1;
+										*x = Bind::Verified(*a);
+									} else {
+										*x = Bind::Not(vec![*a, v]);
+									}
+								} else {
+									*x = Bind::Not(vec![v]);
+								}
 							}
 						}
 					}
 					Bind::Not(a) => {
 						if a.iter().find(|x| **x == v).is_none() {
-							if conflict_confirm(&k, v) {
-								verify_count += 1;
-								*x = Bind::Verified(v);
-							} else {
-								a.push(v);
+							if let Some(confirm) = conflict_confirm(&k, v) {
+								if confirm {
+									verify_count += 1;
+									*x = Bind::Verified(v);
+								} else {
+									a.push(v);
+								}
 							}
 						}
 					}
@@ -425,20 +396,24 @@ impl BindDB {
 					} else {
 						for bind in &appearances {
 							println!("{:?}", bind);
-							if conflict_confirm(bind.0, *a) {
-								verify_count += 1;
-								self.binds.insert(bind.0.to_string(), Bind::Verified(*a));
-								break;
-							} else {
-								self.binds.insert(bind.0.to_string(), Bind::Not(vec![*a]));
-							}
-						
-						}
-					}
+							if let Some(confirm) = conflict_confirm(bind.0, *a) {
+								if confirm {
+									verify_count += 1;
+									self.binds.insert(bind.0.to_string(), Bind::Verified(*a));
 
-					for bind in appearances {
-						if let Some(Bind::Unverified(_)) = self.binds.get(bind.0) {
-							self.binds.remove(bind.0);
+									for bind in &appearances {
+										if let Some(Bind::Unverified(_)) = self.binds.get(bind.0) {
+											self.binds.remove(bind.0);
+										}
+									}
+									break;
+								} else {
+									self.binds.insert(bind.0.to_string(), Bind::Not(vec![*a]));
+								}
+							} else {
+								self.binds.remove(bind.0);
+								break;
+							}
 						}
 					}
 

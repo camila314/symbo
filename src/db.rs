@@ -5,6 +5,7 @@ use serde::{Serialize, Deserialize};
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 #[serde(rename = "D")]
+#[derive(Clone)]
 pub enum Dest {
 	#[serde(rename = "K")]
 	Known(u64),

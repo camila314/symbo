@@ -7,6 +7,7 @@ mod db;
 mod generate;
 mod util;
 mod analysis;
+mod find;
 
 use crate::db::*;
 
@@ -40,6 +41,15 @@ enum Command {
     /// Remove unverified symbols from symdb
     Strip {
         file: PathBuf
+    },
+    /// Attempt to find specific symbol
+    Find {
+        from: PathBuf,
+        to: PathBuf,
+        #[clap(short, long)]
+        symbol: String,
+        #[clap(short, long)]
+        out: PathBuf
     }
 }
 
@@ -74,9 +84,9 @@ fn main() {
             println!("To do!");
 
             //binds.process(analysis::string_xref_strat(&pair, &binds), &out_file);
-            //binds.process(analysis::call_xref_strat(&pair, &binds), &file_path);
-            //binds.process(analysis::call_block_strat(&pair, &binds), &out_file);
             binds.process(analysis::block_traverse_strat(&pair, &binds), &file_path);
+            binds.process(analysis::call_xref_strat(&pair, &binds), &file_path);
+            binds.process(analysis::call_block_strat(&pair, &binds), &file_path);
         },
 
         Command::Strip { file } => {
@@ -88,6 +98,16 @@ fn main() {
             println!("Removed {} symbols", (before_count - binds.binds.len()).to_string().bright_green());
 
             std::fs::write(file, serde_json::to_string_pretty(&binds).unwrap()).unwrap();
+        },
+
+        Command::Find { from, to, symbol, out } => {
+            let pair = ExecPair {
+                input: pot::from_slice(&std::fs::read(from).unwrap()).expect("Invalid exdb file"),
+                output: pot::from_slice(&std::fs::read(to).unwrap()).expect("Invalid exdb file")
+            };
+
+            let mut binds: BindDB = serde_json::from_slice(&std::fs::read(&out).unwrap()).expect("Invalid symdb file");
+            find::find_symbol(&pair, &mut binds, symbol);
 
         }
 
