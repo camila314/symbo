@@ -390,12 +390,11 @@ impl BindDB {
 				//println!("{:?}", appearances);
 
 				if appearances.len() > 1 {
-					println!("{:?}", appearances);
-					if let Some(verified) = appearances.iter().find(|x| matches!(x.1, Bind::Verified(_))) {
+					println!("Processing {} duplicates", appearances.len());
+					if let Some(verified) = appearances.iter().find(|x| matches!(self.binds.get(x.0), Some(Bind::Verified(_)))) {
 						self.binds.insert(verified.0.to_string(), verified.1.clone());
 					} else {
 						for bind in &appearances {
-							println!("{:?}", bind);
 							if let Some(confirm) = conflict_confirm(bind.0, *a) {
 								if confirm {
 									verify_count += 1;
