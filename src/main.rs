@@ -83,7 +83,7 @@ fn main() {
 
             println!("To do!");
 
-            //binds.process(analysis::string_xref_strat(&pair, &binds), &out_file);
+            binds.process(analysis::string_xref_strat(&pair, &binds), &file_path);
             binds.process(analysis::block_traverse_strat(&pair, &binds), &file_path);
             binds.process(analysis::call_xref_strat(&pair, &binds), &file_path);
             binds.process(analysis::call_block_strat(&pair, &binds), &file_path);
