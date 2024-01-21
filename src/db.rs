@@ -13,7 +13,7 @@ pub enum Dest {
 	Unknown
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 #[serde(rename = "T")]
 pub enum Branch {
 	#[serde(rename = "R")]
@@ -47,7 +47,7 @@ pub struct StringRef {
 	pub xrefs: Vec<Address>
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 #[serde(rename = "B")]
 pub struct Block {
 	#[serde(rename = "A")]
@@ -60,7 +60,7 @@ pub struct Block {
 	pub strings: Vec<String>
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename = "F")]
 pub struct Function {
 	#[serde(rename = "N")]

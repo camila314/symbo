@@ -3,14 +3,10 @@ use std::collections::{HashMap, BTreeMap};
 
 use crate::pipes::PipeExt;
 use crate::db::*;
-use crate::util::{Warn, AsSome};
+use crate::util::{Warn, AsSome, hex_to_u64};
 
 use serde_json::Value;
 use rzpipe::{RzPipe, RzPipeSpawnOptions};
-
-fn hex_to_u64(hex: &str) -> Option<u64> {
-	u64::from_str_radix(hex.strip_prefix("0x").unwrap_or("j"), 16).ok().warn_if(format!("Unable to decode hex: {}", hex))
-}
 
 fn get_branch_type(inst: &str, jump: u64, fail: u64) -> Branch {
 	let mut iter = inst.split(" ");

@@ -10,6 +10,7 @@ mod analysis;
 mod find;
 
 use crate::db::*;
+use crate::util::hex_to_u64;
 
 use clap::{Parser, Subcommand};
 
@@ -48,6 +49,17 @@ enum Command {
         to: PathBuf,
         #[clap(short, long)]
         symbol: String,
+        #[clap(short, long)]
+        out: PathBuf
+    },
+    /// Find symbols from class within range
+    Range {
+        from: PathBuf,
+        to: PathBuf,
+        start: String,
+        end: String,
+        #[clap(short, long)]
+        class: String,
         #[clap(short, long)]
         out: PathBuf
     }
@@ -109,7 +121,17 @@ fn main() {
             let mut binds: BindDB = serde_json::from_slice(&std::fs::read(&out).unwrap()).expect("Invalid symdb file");
             find::find_symbol(&pair, &mut binds, symbol);
 
-        }
+        },
+
+        Command::Range { from, to, start, end, class, out } => {
+            let pair = ExecPair {
+                input: pot::from_slice(&std::fs::read(from).unwrap()).expect("Invalid exdb file"),
+                output: pot::from_slice(&std::fs::read(to).unwrap()).expect("Invalid exdb file")
+            };
+
+            let mut binds: BindDB = serde_json::from_slice(&std::fs::read(&out).unwrap()).expect("Invalid symdb file");
+            find::find_range(&pair, &mut binds, class, hex_to_u64(&start).unwrap(), hex_to_u64(&end).unwrap(), &out);
+        },
 
         Command::Print { exec, addr } => {
             let exec: ExecDB = pot::from_slice(&std::fs::read(exec).unwrap()).expect("Invalid exdb file");
